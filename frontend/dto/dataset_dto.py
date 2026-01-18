@@ -15,22 +15,27 @@ class RegionDTO(BaseModel):
 # 2. 자동차 등록대수 (/stats/registrations)
 # ----------------------------------------
 class RegistrationStatDTO(BaseModel):
-    year: int
-    sido_code: str
-    car_type: str          # EV, HYBRID, ICE 등
-    usage: str             # PRIVATE, COMMERCIAL
-    count: int
+    base_month: int
+    region: RegionDTO
+    vehicle_type: str          # EV, HYBRID, ICE 등
+    usage_type: str             # PRIVATE, COMMERCIAL
+    registration_count: int
 
 
 # ----------------------------------------
 # 3. 대기질 통계 (/stats/air)
 # ----------------------------------------
-class AirQualityStatDTO(BaseModel):
+class AirPollutionStatDTO(BaseModel):
     year: int
-    sido_code: str
-    pm_value: int
-    pm_level: str          # GOOD, MODERATE, BAD 등
-    total_count: int
+    region: RegionDTO
+    pollution_degree: int
+
+
+class FaqDTO(BaseModel):
+    question: str
+    answer: str
+    source: str
+    category: str
 
 
 # ----------------------------------------
@@ -38,14 +43,12 @@ class AirQualityStatDTO(BaseModel):
 # ----------------------------------------
 class StationDTO(BaseModel):
     station_id: str
-    type: str              # EV, HYDROGEN
     name: str
-    sido_code: str
-    sigungu_code: str
     address: str
+    region: RegionDTO
     lat: float
     lng: float
-
+    type: str
 
 class StationListResponseDTO(BaseModel):
     page: int
