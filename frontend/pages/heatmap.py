@@ -1,0 +1,313 @@
+# streamlit_detail_page.py
+# 그대로 복사/붙여넣기 후 실행:
+#   pip install streamlit numpy matplotlib
+#   streamlit run streamlit_detail_page.py
+
+import streamlit as st
+import numpy as np
+import matplotlib.pyplot as plt
+
+
+# -----------------------------
+# Page Config
+# -----------------------------
+st.set_page_config(page_title="Data Visualization Detail Page", layout="wide")
+
+
+# -----------------------------
+# Helpers
+# -----------------------------
+def _safe_label(value, fallback: str = "전체") -> str:
+    if value is None:
+        return fallback
+    s = str(value).strip()
+    if s == "" or s.lower() in {"none", "null"}:
+        return fallback
+    return s
+
+
+def get_filters_from_session_or_defaults():
+    """
+    메인 페이지에서 넘어온 값을 session_state로 받는 것을 가정.
+    값이 없으면 데모 기본값을 사용.
+    """
+    defaults = {
+        "sido": "제주특별자치도",
+        "sigungu": "제주시",
+        "year": 2026,
+        "vehicle_type": "승용",
+        "usage": "자가용",
+    }
+
+    for k, v in defaults.items():
+        if k not in st.session_state:
+            st.session_state[k] = v
+
+    return {
+        "sido": st.session_state.get("sido"),
+        "sigungu": st.session_state.get("sigungu"),
+        "year": st.session_state.get("year"),
+        "vehicle_type": st.session_state.get("vehicle_type"),
+        "usage": st.session_state.get("usage"),
+    }
+
+
+def render_filter_summary(filters: dict):
+    sido = _safe_label(filters.get("sido"), "전체")
+    sigungu = _safe_label(filters.get("sigungu"), "전체")
+    year = _safe_label(filters.get("year"), "전체")
+    vehicle_type = _safe_label(filters.get("vehicle_type"), "전체")
+    usage = _safe_label(filters.get("usage"), "전체")
+
+    region_label = sido if sigungu == "전체" else sigungu
+
+    st.markdown(
+        f"""
+        <div style="
+            width: 100%;
+            border: 1px solid rgba(0,0,0,0.12);
+            border-radius: 16px;
+            padding: 18px 18px;
+            background: rgba(0,0,0,0.02);
+            margin: 14px 0 18px 0;
+        ">
+          <div style="text-align:center; color:#666; font-weight:600; font-size:14px;">
+            Data Visualization Detail Page
+          </div>
+
+          <div style="text-align:center; font-weight:900; font-size:32px; margin-top:10px;">
+            사용자 선택 조건
+          </div>
+
+          <div style="display:flex; justify-content:center; gap:10px; flex-wrap:wrap; margin-top:14px;">
+            <span style="padding:7px 16px; border-radius:999px; background:#eef2ff; color:#3730a3; font-weight:800;">
+              📍 {region_label}
+            </span>
+            <span style="padding:7px 16px; border-radius:999px; background:#ecfeff; color:#155e75; font-weight:800;">
+              📅 {year}년
+            </span>
+            <span style="padding:7px 16px; border-radius:999px; background:#f0fdf4; color:#166534; font-weight:800;">
+              🚗 {vehicle_type}
+            </span>
+            <span style="padding:7px 16px; border-radius:999px; background:#fff7ed; color:#9a3412; font-weight:800;">
+              🧾 {usage}
+            </span>
+          </div>
+
+          <div style="text-align:center; margin-top:10px; color:#555; font-size:14px; font-weight:600;">
+            현재 선택한 조건을 기준으로 시각화된 결과입니다.
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def make_dummy_heatmap_matrix(seed: int, size: int = 120) -> np.ndarray:
+    rng = np.random.default_rng(seed)
+    x = np.linspace(-2.5, 2.5, size)
+    y = np.linspace(-2.5, 2.5, size)
+    X, Y = np.meshgrid(x, y)
+
+    # 중심/핫스팟을 가진 가우시안 + 노이즈
+    cx, cy = rng.uniform(-0.8, 0.8), rng.uniform(-0.8, 0.8)
+    sx, sy = rng.uniform(0.6, 1.2), rng.uniform(0.6, 1.2)
+
+    Z = np.exp(-(((X - cx) ** 2) / (2 * sx**2) + ((Y - cy) ** 2) / (2 * sy**2)))
+    Z += 0.35 * np.exp(-(((X + cx) ** 2) / (2 * (sx * 1.2) ** 2) + ((Y + cy) ** 2) / (2 * (sy * 1.2) ** 2)))
+    Z += rng.normal(0, 0.06, size=(size, size))
+    Z = np.clip(Z, 0, None)
+    return Z
+
+
+def render_heatmaps(filters: dict):
+    st.write("")
+    col1, col2 = st.columns(2, gap="medium")
+
+    seed_base = abs(
+        hash(
+            f"{filters.get('sido')}_{filters.get('sigungu')}_{filters.get('year')}_{filters.get('vehicle_type')}_{filters.get('usage')}"
+        )
+    ) % (2**31)
+
+    with col1:
+        Z_reg = make_dummy_heatmap_matrix(seed=seed_base + 1)
+        fig = plt.figure(figsize=(4, 3))
+        plt.imshow(Z_reg, aspect="auto")
+        plt.axis("off")
+        st.pyplot(fig, use_container_width=False)
+
+        st.markdown(
+            "<div style='text-align:center; font-weight:700; margin-top:6px;'>Vehicle Registration Heatmap</div>",
+            unsafe_allow_html=True,
+        )
+
+    with col2:
+        Z_air = make_dummy_heatmap_matrix(seed=seed_base + 2)
+        fig = plt.figure(figsize=(4, 3))
+        plt.imshow(Z_air, aspect="auto")
+        plt.axis("off")
+        st.pyplot(fig, use_container_width=False)
+
+        st.markdown(
+            "<div style='text-align:center; font-weight:700; margin-top:6px;'>Air Quality Heatmap</div>",
+            unsafe_allow_html=True,
+        )
+
+    return Z_reg, Z_air
+
+
+def render_analysis_text(Z_reg: np.ndarray, Z_air: np.ndarray):
+    r = np.corrcoef(Z_reg.flatten(), Z_air.flatten())[0, 1]
+    r = float(r)
+
+    # 제목: 왼쪽 정렬 유지
+    st.markdown("### 데이터 해석")
+
+    # 내용: 가운데 정렬 + 굵게 + 크게
+    st.markdown(
+        """
+        <div style="
+            text-align:center;
+            font-size: 28px;
+            font-weight: 800;
+            line-height: 1.6;
+            margin-top: 10px;
+            margin-bottom: 10px;
+        ">
+            <div>자동차 등록 밀집 구역과 대기질 악화 구역이 일부 겹쳐 나타납니다.</div>
+            <div>이는 차량 통행·등록 집중이 대기질에 영향을 줄 수 있음을 시사합니다.</div>
+            <div>해당 결과는 참고용이며, 기상·산업·지형 등 다양한 요인도 함께 고려해야 합니다.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        f"""
+        <div style="
+            text-align:center;
+            font-size: 18px;
+            font-weight: 700;
+            color: #444;
+            margin-bottom: 10px;
+        ">
+            (참고) 두 지표 간 상관계수: {r:.2f}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.write("")
+
+
+def render_cta():
+    st.markdown(
+        """
+        <div style="
+            background: rgba(0,0,0,0.03);
+            border-radius: 18px;
+            padding: 20px 22px;
+            text-align: center;
+            margin-top: 14px;
+            margin-bottom: 16px;
+            border: 1px solid rgba(0,0,0,0.10);
+        ">
+          <div style="
+              font-weight: 900;
+              font-size: 28px;
+              line-height: 1.35;
+              margin-bottom: 10px;
+          ">
+            깨끗한 공기를 위한 작은 선택, 무공해차(전기·수소차)로 전환을 고려해보세요.
+          </div>
+
+          <div style="
+              font-weight: 900;
+              font-size: 28px;
+              line-height: 1.35;
+          ">
+            대기질 개선을 위해 친환경 이동수단(무공해차) 구매 혜택을 확인해보세요.
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_subsidy_button():
+    """
+    ✅ 버튼은 딱 1개만 생성되도록 구성
+    ✅ 가운데 정렬: columns로 중앙 영역에 배치
+    ✅ key 중복 방지: 고정 key 1개만 사용
+    """
+    if "show_subsidy_modal" not in st.session_state:
+        st.session_state["show_subsidy_modal"] = False
+
+    # 버튼 CSS는 한 번만 적용
+    st.markdown(
+        """
+        <style>
+        /* 이 페이지에서 '내 보조금 계산하기' 버튼 스타일 */
+        div.stButton > button {
+            width: 420px;
+            background-color: #2563eb;
+            color: white;
+            font-weight: 900;
+            font-size: 20px;
+            padding: 12px 16px;
+            border-radius: 14px;
+            border: none;
+            display: block;
+            margin: 0 auto;
+        }
+        div.stButton > button:hover {
+            background-color: #1d4ed8;
+            color: white;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # 가운데 정렬(양옆 동일 비율)
+    left, center, right = st.columns([1, 1, 1])
+    with center:
+        clicked = st.button("내 보조금 계산하기", key="subsidy_button_detail_center")
+
+    if clicked:
+        st.session_state["show_subsidy_modal"] = True
+
+    if st.session_state["show_subsidy_modal"]:
+        st.info("보조금 계산기는 준비 중입니다. (추후 팝업/페이지로 연결 예정)")
+
+
+# -----------------------------
+# Demo: Session filter controls (optional)
+# -----------------------------
+with st.expander("데모용 입력(메인 페이지에서 넘어온 필터 값을 흉내냄)", expanded=False):
+    c1, c2, c3, c4, c5 = st.columns(5)
+    with c1:
+        st.session_state["sido"] = st.text_input("sido(시/도)", value=st.session_state.get("sido", "제주특별자치도"))
+    with c2:
+        st.session_state["sigungu"] = st.text_input("sigungu(시/군/구)", value=st.session_state.get("sigungu", "제주시"))
+    with c3:
+        st.session_state["year"] = st.number_input(
+            "year(연도)", min_value=2000, max_value=2100, value=int(st.session_state.get("year", 2026))
+        )
+    with c4:
+        st.session_state["vehicle_type"] = st.text_input("vehicle_type(차종)", value=st.session_state.get("vehicle_type", "승용"))
+    with c5:
+        st.session_state["usage"] = st.text_input("usage(용도)", value=st.session_state.get("usage", "자가용"))
+
+
+# -----------------------------
+# Render Page
+# -----------------------------
+filters = get_filters_from_session_or_defaults()
+
+render_filter_summary(filters)
+Z_reg, Z_air = render_heatmaps(filters)
+render_analysis_text(Z_reg, Z_air)
+render_cta()
+render_subsidy_button()
