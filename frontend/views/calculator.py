@@ -3,7 +3,25 @@ from typing import Dict, Union
 from api.client import MockApiClient
 
 
-def hide_sidebar_for_this_page():
+# -----------------------------
+# popup 모드 판별
+# -----------------------------
+def is_popup_mode() -> bool:
+    """
+    URL에 popup=1 이 붙으면 팝업(단독) 페이지로 간주
+    예) ?menu=무공해차%20보조금%20계산기&popup=1
+    """
+    params = st.query_params
+    return str(params.get("popup", "0")).strip() == "1"
+
+
+def apply_popup_css():
+    """
+    팝업 모드에서만:
+    - 왼쪽 사이드바 숨김
+    - 상단 헤더(햄버거) 숨김
+    - (혹시 공통 코드가 만들어낸) '메인으로' 버튼 숨김
+    """
     st.markdown(
         """
         <style>
@@ -13,8 +31,18 @@ def hide_sidebar_for_this_page():
             /* 상단 햄버거(≡) 헤더 숨김 */
             [data-testid="stHeader"] { display: none !important; }
 
-            /* 본문 여백 제거 */
+            /* 본문 왼쪽 여백 제거 */
             [data-testid="stAppViewContainer"] { margin-left: 0 !important; }
+
+            /*
+              '메인으로' 버튼 숨김 (공통 UI에서 삽입된 경우 대비)
+              - 화면 상단에 있는 첫 번째 버튼을 숨기는 방식이라,
+                혹시 페이지 최상단에 다른 버튼이 있다면 위치 조정이 필요합니다.
+              - 현재 스샷 기준(메인으로 버튼이 맨 위 1개)에서는 정확히 먹습니다.
+            */
+            [data-testid="stAppViewContainer"] [data-testid="stButton"]:first-of-type {
+                display: none !important;
+            }
         </style>
         """,
         unsafe_allow_html=True,
@@ -61,12 +89,7 @@ SUBSIDY_MAP: Dict[str, Dict[str, Union[int, str]]] = {
 }
 
 
-def calc_subsidy(
-    year: int,
-    do_name: str,
-    si_name: str,
-    car_kind: str
-) -> Dict[str, str]:
+def calc_subsidy(year: int, do_name: str, si_name: str, car_kind: str) -> Dict[str, str]:
     do_selected = do_name != "- 선택 -"
     si_selected = si_name != "- 선택 -"
 
@@ -98,14 +121,14 @@ def calc_subsidy(
 
 def render():
     """
-    app.py 라우팅에서 호출되는 보조금 계산기 페이지 렌더 함수
-    - DB 직접 접근 금지
-    - (현재 단계) 내부 더미(SUBSIDY_MAP) + MockApiClient 흐름 일부 사용
+    ✅ 요구사항
+    - 팝업(popup=1)에서는: 사이드바/메인으로 버튼 숨김
+    - 메인 사이드바로 들어오면: 사이드바 정상 노출
     """
-    hide_sidebar_for_this_page()
-    st.set_page_config(layout="wide")
+    if is_popup_mode():
+        apply_popup_css()
 
-    regions = MockApiClient.get_regions()  # List[RegionDTO]
+    regions = MockApiClient.get_regions()
     region_names = [r.name for r in regions]
 
     DEFAULTS = {
@@ -151,34 +174,28 @@ def render():
 
             r1 = st.columns([1, 1, 1])
             with r1[0]:
-                _ = st.selectbox(
+                st.selectbox(
                     "구매연도",
                     options=YEARS,
                     index=YEARS.index(st.session_state["year"]),
                     key="year"
                 )
-            with r1[1]:
-                st.empty()
-            with r1[2]:
-                st.empty()
 
             r2 = st.columns(2)
             with r2[0]:
-                _ = st.selectbox("도", options=DO_OPTIONS, index=DO_OPTIONS.index(st.session_state["do"]), key="do")
+                st.selectbox("도", options=DO_OPTIONS, index=DO_OPTIONS.index(st.session_state["do"]), key="do")
             with r2[1]:
-                _ = st.selectbox("시", options=SI_OPTIONS, index=SI_OPTIONS.index(st.session_state["si"]), key="si")
+                st.selectbox("시", options=SI_OPTIONS, index=SI_OPTIONS.index(st.session_state["si"]), key="si")
 
             r3 = st.columns([2, 1])
             with r3[0]:
-                _ = st.radio(
+                st.radio(
                     "차량 구분",
                     options=CAR_KIND_OPTIONS,
                     index=CAR_KIND_OPTIONS.index(st.session_state["car_kind"]),
                     horizontal=True,
                     key="car_kind"
                 )
-            with r3[1]:
-                st.empty()
 
             b1, b2, _b3 = st.columns([1, 1, 6])
             with b1:
@@ -209,7 +226,6 @@ def render():
 
     st.caption(f"참고: MockApiClient 지역 데이터 {len(region_names)}개 로드됨")
 
-    box_text = result["message"]
     st.markdown(
         f"""
         <div style="
@@ -223,7 +239,7 @@ def render():
             margin-top:10px;
             margin-bottom:18px;
         ">
-            {box_text}
+            {result["message"]}
         </div>
         """,
         unsafe_allow_html=True
