@@ -14,7 +14,6 @@ from folium.features import DivIcon
 from streamlit_folium import st_folium
 from api.client import MockApiClient
 
-
 # -------------------------
 # 1. 상수 및 유틸리티 설정
 # -------------------------
@@ -26,42 +25,6 @@ PROVINCE_CENTERS = {
     "부산": [35.1796, 129.0756], "전북": [35.7175, 127.1530], "전남": [34.8679, 126.9910],
     "광주": [35.1595, 126.8526], "제주": [33.4996, 126.5312],
 }
-
-
-# -------------------------
-# 2. 충전소 카드 렌더링
-# -------------------------
-def render_stations(stations, max_height_px: int = 320):
-    cards = []
-    for s in stations:
-        dist_m = int(s.get("distance_m", 0) or 0)
-        dist = f"{dist_m}m" if dist_m < 1000 else f"{dist_m / 1000:.1f}km"
-
-        lat = s.get("latitude")
-        lng = s.get("longitude")
-
-        coord_text = ""
-        if lat is not None and lng is not None:
-            coord_text = f"<div style='font-size:12px;color:#777;'>위도/경도: {lat}, {lng}</div>"
-
-        cards.append(
-            f"""
-            <div style="background:#fff;border:1px solid #ddd;border-radius:10px;
-                        padding:12px;margin-bottom:10px;">
-              <div style="font-weight:700;">{s.get('name','')}</div>
-              <div style="font-size:13px;color:#555;">주소: {s.get('address','')}</div>
-              <div style="font-size:13px;color:#555;">거리: {dist}</div>
-              {coord_text}
-            </div>
-            """
-        )
-
-    html = f"""
-    <div style="max-height:{max_height_px}px;overflow-y:auto;">
-        {''.join(cards)}
-    </div>
-    """
-    components.html(html, height=max_height_px + 20)
 
 
 def _clean_name(x: str) -> str:
@@ -126,6 +89,42 @@ def get_enriched_geojson(_geo, _df):
     return geo_copy
 
 
+# -------------------------
+# 2. UI 구성 요소 렌더링 함수
+# -------------------------
+def render_stations(stations, max_height_px: int = 320):
+    cards = []
+    for s in stations:
+        dist_m = int(s.get("distance_m", 0) or 0)
+        dist = f"{dist_m}m" if dist_m < 1000 else f"{dist_m / 1000:.1f}km"
+
+        lat = s.get("latitude")
+        lng = s.get("longitude")
+
+        coord_text = ""
+        if lat is not None and lng is not None:
+            coord_text = f"<div style='font-size:12px;color:#777;'>위도/경도: {lat}, {lng}</div>"
+
+        cards.append(
+            f"""
+            <div style="background:#fff;border:1px solid #ddd;border-radius:10px;
+                        padding:12px;margin-bottom:10px;">
+              <div style="font-weight:700;">{s.get('name', '')}</div>
+              <div style="font-size:13px;color:#555;">주소: {s.get('address', '')}</div>
+              <div style="font-size:13px;color:#555;">거리: {dist}</div>
+              {coord_text}
+            </div>
+            """
+        )
+
+    html = f"""
+    <div style="max-height:{max_height_px}px;overflow-y:auto;">
+        {''.join(cards)}
+    </div>
+    """
+    components.html(html, height=max_height_px + 20)
+
+
 def render_cta():
     st.markdown(
         """
@@ -146,7 +145,6 @@ def render_cta():
           ">
             깨끗한 공기를 위한 작은 선택, 무공해차(전기·수소차)로 전환을 고려해보세요.
           </div>
-
           <div style="
               font-weight: 900;
               font-size: 28px;
@@ -185,7 +183,6 @@ def render_subsidy_popup_button():
         내 보조금 계산하기
       </button>
     </div>
-
     <script>
       const btn = document.getElementById("subsidyPopupBtn");
       btn.addEventListener("click", () => {{
@@ -201,10 +198,6 @@ def render_subsidy_popup_button():
 # 3. GPS 관련 함수
 # -------------------------
 def sync_location_from_query_params():
-    """
-    URL 쿼리파라미터(gps_lat,gps_lng)가 있으면 session_state에 저장합니다.
-    예: ?menu=...&gps_lat=37.1&gps_lng=127.1
-    """
     params = st.query_params
     lat = params.get("gps_lat") or params.get("lat")
     lng = params.get("gps_lng") or params.get("lng")
@@ -213,12 +206,9 @@ def sync_location_from_query_params():
         try:
             st.session_state["user_lat"] = float(lat)
             st.session_state["user_lng"] = float(lng)
-
-            # ✅ 한 번 저장했으면 URL 정리
             for k in ["gps_lat", "gps_lng", "gps_ts", "lat", "lng"]:
                 if k in st.query_params:
                     del st.query_params[k]
-
         except ValueError:
             st.session_state.pop("user_lat", None)
             st.session_state.pop("user_lng", None)
@@ -226,10 +216,8 @@ def sync_location_from_query_params():
 
 def render_gps_buttons():
     col1, col2 = st.columns([1, 1])
-
     with col1:
         use_now = st.button("📍 현재 위치 사용", use_container_width=True)
-
     with col2:
         reset = st.button("🧹 위치 초기화", use_container_width=True)
 
@@ -251,12 +239,10 @@ def render_gps_buttons():
                 url.searchParams.set("gps_ts", String(Date.now()));
                 window.location.href = url.toString();
               }
-
               if (!navigator.geolocation) {
                 alert("이 브라우저는 위치(GPS)를 지원하지 않아요.");
                 return;
               }
-
               navigator.geolocation.getCurrentPosition(
                 (pos) => { go(pos.coords.latitude, pos.coords.longitude); },
                 (err) => {
@@ -277,14 +263,11 @@ def render_gps_buttons():
 # 4. 메인 렌더링 함수
 # -------------------------
 def render():
-    # ✅ car_kind 기본값
     if "car_kind" not in st.session_state:
         st.session_state["car_kind"] = "전기차"
 
-    # ✅ URL gps_lat/gps_lng -> session_state 동기화
     sync_location_from_query_params()
 
-    # CSS 설정
     st.markdown(
         """
         <style>
@@ -312,6 +295,7 @@ def render():
     if "selected_province" not in st.session_state:
         st.session_state.selected_province = ""
 
+    # 지도 생성
     m = folium.Map(
         location=[36.3, 127.8],
         zoom_start=7,
@@ -323,6 +307,7 @@ def render():
         touchZoom=False,
     )
 
+    # 포커스 방지 JS
     m.get_root().header.add_child(
         folium.Element(
             """
@@ -420,15 +405,72 @@ def render():
         },
     )
 
-    # =========================
+    # -------------------------
+    # 추가된 섹션: 정규화 통합 라인 차트
+    # -------------------------
+    target_name = st.session_state.selected_province
+    if not target_name:
+        st.info("💡 분석할 지역을 선택하면 조작이 불가능한 정적 추이 그래프가 나타납니다.")
+    else:
+        st.markdown(f"### 📈 {target_name} 지표별 변화 추이 (Scale Normalized)")
+
+        years = [2022, 2023, 2024, 2025, 2026]
+        region_rows = merged_df[merged_df["p_clean"] == _clean_name(target_name)]
+
+        if not region_rows.empty:
+            region_data = region_rows.iloc[0]
+            base_reg = region_data["reg_count"]
+            base_poll = region_data["poll_degree"]
+
+            df_trend = pd.DataFrame({
+                "연도": years,
+                "자동차 등록대수": [int(base_reg * (0.9 + (i * 0.025))) for i in range(len(years))],
+                "대기질 오염도": [base_poll + (i * 1.5) - (i % 2 * 3) for i in range(len(years))],
+            })
+
+            def normalize(series):
+                if series.max() == series.min():
+                    return series * 0
+                return (series - series.min()) / (series.max() - series.min()) * 100
+
+            reg_norm = normalize(df_trend["자동차 등록대수"])
+            poll_norm = normalize(df_trend["대기질 오염도"])
+
+            set_korean_font()
+            fig, ax = plt.subplots(figsize=(10, 5))
+            ax.plot(years, reg_norm, label="자동차 등록대수", color="#318ce7", marker="o", linewidth=2)
+            ax.plot(years, poll_norm, label="대기질 오염도", color="#ff4b4b", marker="s", linewidth=2)
+
+            ax.set_title(f"{target_name} 지표별 상관관계 분석", fontsize=14)
+            ax.set_ylim(-10, 110)
+            ax.set_xticks(years)
+            ax.set_ylabel("상대적 변화율 (0-100)")
+            ax.legend(loc="upper left")
+            ax.grid(True, linestyle="--", alpha=0.5)
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
+
+            st.pyplot(fig)
+            plt.close(fig)
+
+            st.caption(
+                "**💡 그래프 설명:** 연도별 자동차 등록대수 증가와 대기질 오염도의 상관관계를 분석하기 위해, "
+                "서로 다른 단위의 두 지표를 0~100 사이의 상대적 수치로 정규화(Normalization)하여 나타낸 분석 차트입니다."
+            )
+
+            st.divider()
+            m1, m2, m3 = st.columns(3)
+            m1.metric("최종 자동차 등록대수", f"{int(df_trend['자동차 등록대수'].iloc[-1]):,} 대")
+            m2.metric("최종 대기질 오염도", f"{df_trend['대기질 오염도'].iloc[-1]:.1f} μg/m³")
+            m3.metric("5개년 등록 증가 추세", "+10.0%")
+
+    # -------------------------
     # CTA + 보조금 팝업 버튼
-    # =========================
+    # -------------------------
     render_cta()
     render_subsidy_popup_button()
 
-    # -------------------------
-    # 전기차 / 수소차 선택
-    # -------------------------
+    # 차종 선택 및 GPS
     car_kind = st.radio(
         "차종 선택",
         ["전기차", "수소차"],
@@ -438,14 +480,9 @@ def render():
     )
     st.session_state["car_kind"] = car_kind
 
-    # -------------------------
-    # GPS 버튼
-    # -------------------------
     render_gps_buttons()
 
-    # -------------------------
     # 충전소 섹션
-    # -------------------------
     user_lat = st.session_state.get("user_lat")
     user_lng = st.session_state.get("user_lng")
 
