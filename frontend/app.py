@@ -1,5 +1,6 @@
 import streamlit as st
-from views import main
+from views import main, heatmap, calculator, faq
+
 
 st.set_page_config(
     page_title="Vehicle Air Insight",
@@ -23,9 +24,11 @@ current_menu = params.get("menu", "지역별 자동차 등록 현황")
 
 MENU_ITEMS = [
     "지역별 자동차 등록 현황",
+    "자동차 등록 개수와 대기질의 상관관계",
     "무공해차 보조금 계산기",
     "무공해차 FAQ",
 ]
+
 
 st.sidebar.title("Menu")
 
@@ -39,5 +42,16 @@ for item in MENU_ITEMS:
 # -------------------------
 if current_menu == "지역별 자동차 등록 현황":
     main.render()
+
+elif current_menu == "자동차 등록 개수와 대기질의 상관관계":
+    heatmap.render()
+
+elif current_menu == "무공해차 보조금 계산기":
+    calculator.render()
+
+elif current_menu == "무공해차 FAQ":
+    faq.render()
+
+
 else:
     st.info("아직 구현되지 않은 페이지입니다.")
