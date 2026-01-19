@@ -1,17 +1,7 @@
-# streamlit_detail_page.py
-# 그대로 복사/붙여넣기 후 실행:
-#   pip install streamlit numpy matplotlib
-#   streamlit run streamlit_detail_page.py
-
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
-
-
-# -----------------------------
-# Page Config
-# -----------------------------
-st.set_page_config(page_title="Data Visualization Detail Page", layout="wide")
+from api.client import MockApiClient
 
 
 # -----------------------------
@@ -282,32 +272,52 @@ def render_subsidy_button():
         st.info("보조금 계산기는 준비 중입니다. (추후 팝업/페이지로 연결 예정)")
 
 
-# -----------------------------
-# Demo: Session filter controls (optional)
-# -----------------------------
-with st.expander("데모용 입력(메인 페이지에서 넘어온 필터 값을 흉내냄)", expanded=False):
-    c1, c2, c3, c4, c5 = st.columns(5)
-    with c1:
-        st.session_state["sido"] = st.text_input("sido(시/도)", value=st.session_state.get("sido", "제주특별자치도"))
-    with c2:
-        st.session_state["sigungu"] = st.text_input("sigungu(시/군/구)", value=st.session_state.get("sigungu", "제주시"))
-    with c3:
-        st.session_state["year"] = st.number_input(
-            "year(연도)", min_value=2000, max_value=2100, value=int(st.session_state.get("year", 2026))
-        )
-    with c4:
-        st.session_state["vehicle_type"] = st.text_input("vehicle_type(차종)", value=st.session_state.get("vehicle_type", "승용"))
-    with c5:
-        st.session_state["usage"] = st.text_input("usage(용도)", value=st.session_state.get("usage", "자가용"))
 
 
-# -----------------------------
-# Render Page
-# -----------------------------
-filters = get_filters_from_session_or_defaults()
+def render():
+    """
+    app.py 라우팅에서 호출되는 Heatmap 페이지 렌더 함수
+    - DB 직접 접근 금지
+    - MockApiClient(더미) 기반 흐름 유지
+    """
+    st.markdown("## 히트맵 분석 (상세 페이지)")
 
-render_filter_summary(filters)
-Z_reg, Z_air = render_heatmaps(filters)
-render_analysis_text(Z_reg, Z_air)
-render_cta()
-render_subsidy_button()
+    # (선택) client 더미 데이터 호출로 팀 규칙 일관성 맞추기
+    # 현재 heatmap은 난수 기반 시각화지만, 최소한 데이터 소스 흐름은 통일하는 목적입니다.
+    reg_stats = MockApiClient.get_registration_stats()
+    air_stats = MockApiClient.get_air_pollution_stats()
+    st.caption(f"더미 데이터 기반: 등록통계 {len(reg_stats)}건, 대기질 {len(air_stats)}건")
+
+
+    # 데모용 입력은 개발 중에만 사용 권장
+    with st.expander("데모용 입력(메인 페이지에서 넘어온 필터 값을 흉내냄)", expanded=False):
+        c1, c2, c3, c4, c5 = st.columns(5)
+        with c1:
+            st.session_state["sido"] = st.text_input(
+                "sido(시/도)", value=st.session_state.get("sido", "제주특별자치도")
+            )
+        with c2:
+            st.session_state["sigungu"] = st.text_input(
+                "sigungu(시/군/구)", value=st.session_state.get("sigungu", "제주시")
+            )
+        with c3:
+            st.session_state["year"] = st.number_input(
+                "year(연도)", min_value=2000, max_value=2100,
+                value=int(st.session_state.get("year", 2026))
+            )
+        with c4:
+            st.session_state["vehicle_type"] = st.text_input(
+                "vehicle_type(차종)", value=st.session_state.get("vehicle_type", "승용")
+            )
+        with c5:
+            st.session_state["usage"] = st.text_input(
+                "usage(용도)", value=st.session_state.get("usage", "자가용")
+            )
+
+    filters = get_filters_from_session_or_defaults()
+
+    render_filter_summary(filters)
+    Z_reg, Z_air = render_heatmaps(filters)
+    render_analysis_text(Z_reg, Z_air)
+    render_cta()
+    render_subsidy_button()
