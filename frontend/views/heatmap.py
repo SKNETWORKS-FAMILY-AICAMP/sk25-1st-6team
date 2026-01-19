@@ -1,6 +1,9 @@
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
+import streamlit.components.v1 as components
+from urllib.parse import quote
+
 from api.client import MockApiClient
 
 
@@ -99,7 +102,6 @@ def make_dummy_heatmap_matrix(seed: int, size: int = 120) -> np.ndarray:
     y = np.linspace(-2.5, 2.5, size)
     X, Y = np.meshgrid(x, y)
 
-    # 중심/핫스팟을 가진 가우시안 + 노이즈
     cx, cy = rng.uniform(-0.8, 0.8), rng.uniform(-0.8, 0.8)
     sx, sy = rng.uniform(0.6, 1.2), rng.uniform(0.6, 1.2)
 
@@ -151,10 +153,8 @@ def render_analysis_text(Z_reg: np.ndarray, Z_air: np.ndarray):
     r = np.corrcoef(Z_reg.flatten(), Z_air.flatten())[0, 1]
     r = float(r)
 
-    # 제목: 왼쪽 정렬 유지
     st.markdown("### 데이터 해석")
 
-    # 내용: 가운데 정렬 + 굵게 + 크게
     st.markdown(
         """
         <div style="
@@ -225,53 +225,53 @@ def render_cta():
     )
 
 
-def render_subsidy_button():
+def render_subsidy_popup_button():
     """
-    ✅ 버튼은 딱 1개만 생성되도록 구성
-    ✅ 가운데 정렬: columns로 중앙 영역에 배치
-    ✅ key 중복 방지: 고정 key 1개만 사용
+    ✅ '내 보조금 계산하기' 클릭 시 calculator 페이지를 "팝업(새 창)"으로 엽니다.
+    - Streamlit 내부 모달로 다른 .py 페이지를 띄우는 건 불가하므로,
+      브라우저 window.open()으로 새 창을 여는 방식입니다.
+    - 팝업 차단이 켜져 있으면 새 창이 막힐 수 있습니다.
     """
-    if "show_subsidy_modal" not in st.session_state:
-        st.session_state["show_subsidy_modal"] = False
 
-    # 버튼 CSS는 한 번만 적용
-    st.markdown(
-        """
-        <style>
-        /* 이 페이지에서 '내 보조금 계산하기' 버튼 스타일 */
-        div.stButton > button {
-            width: 420px;
-            background-color: #2563eb;
-            color: white;
-            font-weight: 900;
-            font-size: 20px;
-            padding: 12px 16px;
-            border-radius: 14px;
-            border: none;
-            display: block;
-            margin: 0 auto;
-        }
-        div.stButton > button:hover {
-            background-color: #1d4ed8;
-            color: white;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+    # app.py 라우팅에서 사용하는 메뉴 값과 반드시 동일해야 합니다.
+    menu_value = "무공해차 보조금 계산기"
+    popup_url = f"?menu={quote(menu_value)}"
 
-    # 가운데 정렬(양옆 동일 비율)
-    left, center, right = st.columns([1, 1, 1])
-    with center:
-        clicked = st.button("내 보조금 계산하기", key="subsidy_button_detail_center")
+    # 버튼을 가운데 정렬 + 기존 스타일 유지
+    html = f"""
+    <div style="display:flex; justify-content:center; margin-top: 6px; margin-bottom: 10px;">
+      <button
+        id="subsidyPopupBtn"
+        style="
+          width: 420px;
+          background-color: #2563eb;
+          color: white;
+          font-weight: 900;
+          font-size: 20px;
+          padding: 12px 16px;
+          border-radius: 14px;
+          border: none;
+          cursor: pointer;
+        "
+        onmouseover="this.style.backgroundColor='#1d4ed8'"
+        onmouseout="this.style.backgroundColor='#2563eb'"
+      >
+        내 보조금 계산하기
+      </button>
+    </div>
 
-    if clicked:
-        st.session_state["show_subsidy_modal"] = True
+    <script>
+      const btn = document.getElementById("subsidyPopupBtn");
+      btn.addEventListener("click", () => {{
+        // 팝업(새 창) 옵션: 너비/높이/스크롤 등
+        const features = "width=1100,height=800,scrollbars=yes,resizable=yes";
+        window.open("{popup_url}", "_blank", features);
+      }});
+    </script>
+    """
 
-    if st.session_state["show_subsidy_modal"]:
-        st.info("보조금 계산기는 준비 중입니다. (추후 팝업/페이지로 연결 예정)")
-
-
+    # height는 HTML 영역 높이
+    components.html(html, height=90)
 
 
 def render():
@@ -282,14 +282,10 @@ def render():
     """
     st.markdown("## 히트맵 분석 (상세 페이지)")
 
-    # (선택) client 더미 데이터 호출로 팀 규칙 일관성 맞추기
-    # 현재 heatmap은 난수 기반 시각화지만, 최소한 데이터 소스 흐름은 통일하는 목적입니다.
     reg_stats = MockApiClient.get_registration_stats()
     air_stats = MockApiClient.get_air_pollution_stats()
     st.caption(f"더미 데이터 기반: 등록통계 {len(reg_stats)}건, 대기질 {len(air_stats)}건")
 
-
-    # 데모용 입력은 개발 중에만 사용 권장
     with st.expander("데모용 입력(메인 페이지에서 넘어온 필터 값을 흉내냄)", expanded=False):
         c1, c2, c3, c4, c5 = st.columns(5)
         with c1:
@@ -320,4 +316,6 @@ def render():
     Z_reg, Z_air = render_heatmaps(filters)
     render_analysis_text(Z_reg, Z_air)
     render_cta()
-    render_subsidy_button()
+
+    # ✅ 여기서 팝업 버튼 렌더
+    render_subsidy_popup_button()

@@ -24,11 +24,9 @@ current_menu = params.get("menu", "지역별 자동차 등록 현황")
 
 MENU_ITEMS = [
     "지역별 자동차 등록 현황",
-    "자동차 등록 개수와 대기질의 상관관계",
     "무공해차 보조금 계산기",
     "무공해차 FAQ",
 ]
-
 
 st.sidebar.title("Menu")
 
