@@ -1,9 +1,11 @@
 import json
+import platform
 import re
 import os
 import streamlit as st
 import pandas as pd
 import folium
+import matplotlib.pyplot as plt
 from folium.features import DivIcon
 from streamlit_folium import st_folium
 from api.client import MockApiClient
@@ -26,6 +28,16 @@ def _clean_name(x: str) -> str:
     x = re.sub(r"\s+", "", x.strip())
     return re.sub(r"(특별시|광역시|특별자치시|특별자치도|도|시)$", "", x)
 
+def set_korean_font():
+    """Matplotlib 한글 깨짐 방지 설정"""
+    os_name = platform.system()
+    if os_name == "Windows":
+        plt.rc("font", family="Malgun Gothic")
+    elif os_name == "Darwin": # Mac
+        plt.rc("font", family="AppleGothic")
+    else: # Linux
+        plt.rc("font", family="NanumGothic")
+    plt.rc("axes", unicode_minus=False)
 
 @st.cache_data
 def load_geojson():
@@ -196,3 +208,84 @@ def render():
             "대기질 오염도": st.column_config.NumberColumn(format="%d μg/m³")
         }
     )
+
+    # =========================
+    # 7) 필터 영역 (도/시 2단계 선택)
+    # =========================
+    st.markdown("---")
+    st.subheader("📊 지역별 통합 추이 분석 (정규화 비교)")
+
+    all_provinces = ["전체"] + sorted(merged_df['province'].unique().tolist())
+
+    def on_province_change():
+        val = st.session_state.p_filter_widget
+        st.session_state.selected_province = "" if val == "전체" else val
+        st.session_state.city_filter_widget = "전체"
+
+    curr_p = st.session_state.selected_province if st.session_state.selected_province else "전체"
+    try:
+        p_idx = next(i for i, v in enumerate(all_provinces) if _clean_name(v) == _clean_name(curr_p))
+    except StopIteration:
+        p_idx = 0
+
+    f_col1, f_col2 = st.columns(2)
+    with f_col1:
+        province_sel = st.selectbox("도(Province) 선택", all_provinces, index=p_idx, key="p_filter_widget",
+                                    on_change=on_province_change)
+    with f_col2:
+        city_options = ["전체"] if province_sel == "전체" else ["전체", f"{province_sel} 중심지", f"{province_sel} 외곽지역"]
+        city_sel = st.selectbox("시(City) 선택", city_options, key="city_filter_widget")
+
+    # F. 정규화 통합 라인 차트 표시 (Matplotlib 고정형)
+    target_name = st.session_state.selected_province
+
+    if not target_name:
+        st.info("💡 분석할 지역을 선택하면 조작이 불가능한 정적 추이 그래프가 나타납니다.")
+    else:
+        st.markdown(f"### 📈 {target_name} 지표별 변화 추이 (Scale Normalized)")
+
+        # [1] 데이터 시뮬레이션
+        years = [2022, 2023, 2024, 2025, 2026]
+        region_data = merged_df[merged_df['p_clean'] == _clean_name(target_name)].iloc[0]
+        base_reg = region_data['reg_count']
+        base_poll = region_data['poll_degree']
+
+        df_trend = pd.DataFrame({
+            "연도": years,
+            "자동차 등록대수": [int(base_reg * (0.9 + (i * 0.025))) for i in range(len(years))],
+            "대기질 오염도": [base_poll + (i * 1.5) - (i % 2 * 3) for i in range(len(years))]
+        })
+
+        # [2] 정규화 함수 ($X_{norm} = \frac{X - X_{min}}{X_{max} - X_{min}} \times 100$)
+        def normalize(series):
+            if series.max() == series.min(): return series * 0
+            return (series - series.min()) / (series.max() - series.min()) * 100
+
+        reg_norm = normalize(df_trend["자동차 등록대수"])
+        poll_norm = normalize(df_trend["대기질 오염도"])
+
+        # [3] Matplotlib 정적 그래프 생성
+        set_korean_font()
+        fig, ax = plt.subplots(figsize=(10, 5))
+        ax.plot(years, reg_norm, label="자동차 등록대수", color="#318ce7", marker='o', linewidth=2)
+        ax.plot(years, poll_norm, label="대기질 오염도", color="#ff4b4b", marker='s', linewidth=2)
+
+        ax.set_title(f"{target_name} 지표별 상관관계 분석", fontsize=14)
+        ax.set_ylim(-10, 110)
+        ax.set_xticks(years)
+        ax.set_ylabel("상대적 변화율 (0-100)")
+        ax.legend(loc='upper left')
+        ax.grid(True, linestyle='--', alpha=0.5)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+
+        st.pyplot(fig)
+        plt.close(fig)
+
+        st.caption(f"**💡 그래프 설명:** 연도별 자동차 등록대수 증가와 대기질 오염도의 상관관계를 분석하기 위해, 서로 다른 단위의 두 지표를 0~100 사이의 상대적 수치로 정규화(Normalization)하여 나타낸 분석 차트입니다.")
+        # [4] 요약 지표
+        st.divider()
+        m1, m2, m3 = st.columns(3)
+        m1.metric("최종 자동차 등록대수", f"{int(df_trend['자동차 등록대수'].iloc[-1]):,} 대")
+        m2.metric("최종 대기질 오염도", f"{df_trend['대기질 오염도'].iloc[-1]:.1f} μg/m³")
+        m3.metric("5개년 등록 증가 추세", "+10.0%")
